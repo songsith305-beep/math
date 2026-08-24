@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="พีทาโกรัส 3 มิติ">
+<meta name="theme-color" content="#ffffff">
+<meta name="description" content="โมเดล 3 มิติเชิงโต้ตอบ พิสูจน์ทฤษฎีบทพีทาโกรัสด้วยการตัดแบ่งพื้นที่แบบ Perigal">
+<title>พิสูจน์ทฤษฎีบทพีทาโกรัส 3 มิติ — Perigal Dissection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f4f7fb; --line:#d9e0ec; --txt:#15202f; --dim:#5c6a82;
+    --ca:#047857;   /* a²  เขียวเข้ม   */
+    --cb:#1d4ed8;   /* b²  น้ำเงินเข้ม */
+    --cc:#be123c;   /* c²  ม่วงแดงเข้ม */
+    --ctri:#b45309; /* สามเหลี่ยม น้ำตาลส้ม */
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:radial-gradient(1100px 780px at 50% -12%, #ffffff 0%, #eef2f8 100%);
+    color:var(--txt);
+    font-family:'Sarabun','Noto Sans Thai',system-ui,'Segoe UI',sans-serif;
+    overflow:hidden; overscroll-behavior:none;
+    touch-action:manipulation;
+    -webkit-tap-highlight-color:transparent;
+    -webkit-user-select:none; user-select:none;
+    -webkit-text-size-adjust:100%;
+  }
+  #app{position:fixed;inset:0;display:flex;flex-direction:column}
+  #stage{position:relative;flex:1;min-height:0}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+
+  /* ---------- overlay ---------- */
+  #eq{
+    position:absolute;top:12px;left:12px;right:12px;
+    display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+    pointer-events:none;
+  }
+  .card{
+    background:rgba(255,255,255,.9);border:1px solid var(--line);
+    border-radius:14px;padding:8px 12px;
+    -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    box-shadow:0 2px 12px rgba(21,32,47,.08);
+  }
+  /* ---- แถบตราโรงเรียน ---- */
+  #brand{display:flex;align-items:center;gap:13px;padding:10px 16px 10px 11px}
+  #logo{
+    width:64px;height:64px;flex:0 0 auto;object-fit:cover;
+    border-radius:50%;background:#fff;
+    border:2px solid #e3e9f2;
+    box-shadow:0 2px 8px rgba(21,32,47,.14);
+  }
+  #school{font-weight:700;font-size:15.5px;line-height:1.25;letter-spacing:.1px}
+  #teacher{font-weight:400;font-size:12px;color:var(--dim);margin-top:2px}
+  #subtitle{
+    font-weight:600;font-size:11px;color:var(--cc);margin-top:4px;
+    padding-top:4px;border-top:1px solid var(--line);
+  }
+  /* ---- กรอบสมการ (ชิดขวา) ---- */
+  #eqcard{margin-left:auto;text-align:right;padding:12px 18px}
+  #eqbox{font-size:22px;font-weight:700;display:flex;align-items:center;gap:9px;
+         flex-wrap:wrap;justify-content:flex-end;font-variant-numeric:tabular-nums}
+  .va{color:var(--ca)} .vb{color:var(--cb)} .vc{color:var(--cc)}
+  .op{color:var(--dim);font-weight:400}
+  #check{font-size:12.5px;color:var(--dim);margin-top:6px;font-weight:400;line-height:1.6}
+
+  #hint{
+    position:absolute;left:12px;bottom:12px;font-size:11.5px;color:var(--dim);
+    line-height:1.7;pointer-events:none;max-width:min(60vw,330px)
+  }
+  #hint b{color:var(--txt);font-weight:600}
+
+  /* ---------- แผงควบคุมล่าง ---------- */
+  #bottom{
+    background:#fff;border-top:1px solid var(--line);
+    box-shadow:0 -3px 14px rgba(21,32,47,.06);
+    padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:9px;
+  }
+  #explain{
+    display:flex;gap:10px;align-items:flex-start;
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:9px 12px;min-height:56px;
+  }
+  #stepno{
+    flex:0 0 auto;width:26px;height:26px;border-radius:50%;
+    background:var(--cc);color:#fff;font-weight:700;font-size:13px;
+    display:flex;align-items:center;justify-content:center;margin-top:1px;
+    transition:background .25s;
+  }
+  #steptxt{font-size:13px;line-height:1.55}
+  #steptxt b{color:#0b1524}
+  #steptxt span{color:var(--dim);display:block;font-size:11.5px;margin-top:2px}
+
+  .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .ctl{display:flex;align-items:center;gap:8px;flex:1 1 200px;min-width:180px}
+  .ctl label{font-size:12.5px;font-weight:600;white-space:nowrap;min-width:74px}
+  .ctl .val{font-size:12px;color:var(--dim);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;flex:1;height:22px;background:transparent;cursor:pointer;
+    touch-action:pan-x;
+  }
+  input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:#dde4ef}
+  input[type=range]::-moz-range-track{height:5px;border-radius:3px;background:#dde4ef}
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:17px;height:17px;border-radius:50%;
+    background:#fff;border:3px solid var(--accent,#be123c);margin-top:-6px;
+    box-shadow:0 1px 4px rgba(21,32,47,.35)
+  }
+  input[type=range]::-moz-range-thumb{
+    width:17px;height:17px;border-radius:50%;background:#fff;border:3px solid var(--accent,#be123c);
+  }
+  #ra{--accent:var(--ca)} #rb{--accent:var(--cb)} #rt{--accent:var(--cc)}
+  #rt{height:26px}
+  #rt::-webkit-slider-runnable-track{height:7px}
+  #rt::-webkit-slider-thumb{width:21px;height:21px;margin-top:-7px}
+
+  /* ---- ช่องติ๊กถูก แยกทีละด้าน ---- */
+  .chkgroup{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .chklabel{font-size:12.5px;font-weight:600;color:var(--dim);white-space:nowrap;margin-right:1px}
+  .chk{
+    display:flex;align-items:center;gap:7px;cursor:pointer;
+    font-size:13.5px;font-weight:700;white-space:nowrap;
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:7px 13px 7px 10px;transition:.15s;
+  }
+  .chk:hover{background:#eaf0f8}
+  .chk input{width:17px;height:17px;cursor:pointer;margin:0}
+  .chk.ca{color:var(--ca)} .chk.ca input{accent-color:var(--ca)} .chk.ca:hover{border-color:var(--ca)}
+  .chk.cb{color:var(--cb)} .chk.cb input{accent-color:var(--cb)} .chk.cb:hover{border-color:var(--cb)}
+  .chk.cc{color:var(--cc)} .chk.cc input{accent-color:var(--cc)} .chk.cc:hover{border-color:var(--cc)}
+  .chk:has(input:not(:checked)){opacity:.5}
+
+  .btns{display:flex;gap:8px}
+  button{
+    font-family:inherit;font-size:13px;font-weight:600;color:var(--txt);
+    background:#f1f5fa;border:1px solid var(--line);border-radius:10px;
+    padding:8px 16px;cursor:pointer;transition:.15s;white-space:nowrap;
+  }
+  button:hover{background:#e6ecf6;border-color:#c4cfe0}
+  button:active{transform:translateY(1px)}
+  #play{background:var(--cc);border-color:var(--cc);color:#fff}
+  #play:hover{filter:brightness(1.12);border-color:var(--cc)}
+
+  #err{
+    position:absolute;inset:0;display:none;place-items:center;text-align:center;
+    padding:24px;font-size:14px;line-height:1.8;color:var(--dim)
+  }
+  @media (max-width:700px){
+    #subtitle,#hint{display:none}
+    #logo{width:44px;height:44px;border-width:1.5px}
+    #brand{gap:9px;padding:8px 12px 8px 9px}
+    #school{font-size:12.5px}
+    #teacher{font-size:10.5px}
+    #eqcard{padding:9px 12px}
+    #eqbox{font-size:15px;gap:6px}
+    #check{font-size:10.5px;margin-top:3px}
+    .ctl{flex:1 1 100%}
+    .chklabel{display:none}
+    .chk{font-size:13px;padding:6px 11px 6px 9px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="eq">
+      <div class="card" id="brand">
+        <!-- ============================================================
+             ★ ตราโรงเรียน (ฝังเป็น Base64 แล้ว — ไฟล์เดียวจบ เปิดออฟไลน์ได้) ★
+             ถ้าต้องการเปลี่ยนรูป ให้แทนค่า src="data:image/png;base64,...." ด้านล่าง
+             ============================================================ -->
+        <img id="logo" alt="ตราโรงเรียน" src="data:image/png;base64,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">
+        <div>
+          <div id="school">โรงเรียนเตรียมอุดมศึกษาพัฒนาการ</div>
+          <div id="teacher">ครูผู้สอน นายทรงสิทธิ์ ทรงธรรม</div>
+          <div id="subtitle">พิสูจน์ทฤษฎีบทพีทาโกรัส · Perigal Dissection</div>
+        </div>
+      </div>
+      <div class="card" id="eqcard">
+        <div id="eqbox">
+          <span class="va" id="oa">a² = 9.00</span><span class="op">+</span>
+          <span class="vb" id="ob">b² = 16.00</span><span class="op">=</span>
+          <span class="vc" id="oc">c² = 25.00</span>
+        </div>
+        <div id="check">a = 3.00 , b = 4.00 , c = √(a²+b²) = 5.00</div>
+      </div>
+    </div>
+    <div id="hint">
+      <b>ลากพื้นที่ว่าง</b> = หมุนกล้อง · <b>สกรอลล์ / บีบนิ้ว</b> = ซูม<br>
+      <b>ลากที่มุมสามเหลี่ยม</b> (ปลายด้าน a หรือ b) = เปลี่ยนขนาด<br>หรือใช้สไลเดอร์ <b>ด้าน a / ด้าน b</b> ด้านล่างก็ได้
+    </div>
+    <div id="err">ไม่สามารถโหลดไลบรารี Three.js ได้<br>กรุณาเชื่อมต่ออินเทอร์เน็ตแล้วเปิดไฟล์นี้ใหม่อีกครั้ง</div>
+  </div>
+
+  <div id="bottom">
+    <div id="explain">
+      <div id="stepno">0</div>
+      <div id="steptxt"></div>
+    </div>
+
+    <div class="row">
+      <div class="ctl">
+        <label class="va">ด้าน a</label>
+        <input type="range" id="ra" min="0.8" max="6" step="0.01" value="3">
+        <span class="val" id="va">3.00</span>
+      </div>
+      <div class="ctl">
+        <label class="vb">ด้าน b</label>
+        <input type="range" id="rb" min="0.8" max="6" step="0.01" value="4">
+        <span class="val" id="vb">4.00</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="ctl" style="flex:1 1 300px">
+        <label class="vc">แอนิเมชัน</label>
+        <input type="range" id="rt" min="0" max="1000" step="1" value="0">
+        <span class="val" id="vt">0%</span>
+      </div>
+      <div class="chkgroup">
+        <span class="chklabel">แสดงจัตุรัส</span>
+        <label class="chk ca"><input type="checkbox" id="showA" checked>a²</label>
+        <label class="chk cb"><input type="checkbox" id="showB" checked>b²</label>
+        <label class="chk cc"><input type="checkbox" id="showC" checked>c²</label>
+      </div>
+      <div class="btns">
+        <button id="play">▶ เล่น</button>
+        <button id="reset">↺ รีเซ็ต</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+<script>window.THREE||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');</script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<!-- เส้นหนา: WebGL วาดเส้นได้แค่ 1 พิกเซล จึงต้องใช้ LineSegments2 ช่วย -->
+<script src="https://unpkg.com/three@0.128.0/examples/js/lines/LineSegmentsGeometry.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/lines/LineSegments2.js"></script>
+<script src="https://unpkg.com/three@0.128.0/examples/js/lines/LineMaterial.js"></script>
+<script>
+(function(){
+'use strict';
+if(!window.THREE){document.getElementById('err').style.display='grid';return;}
+
+/* ============================================================
+   0) OrbitControls สำรอง (เผื่อโหลดจาก CDN ไม่สำเร็จ)
+   ============================================================ */
+if(!THREE.OrbitControls){
+  THREE.OrbitControls = function(cam, dom){
+    var self=this;
+    this.object=cam; this.domElement=dom; this.enabled=true;
+    this.target=new THREE.Vector3();
+    this.minDistance=2; this.maxDistance=200;
+    this.minPolarAngle=0.05; this.maxPolarAngle=Math.PI/2-0.02;
+    var sph=new THREE.Spherical().setFromVector3(cam.position.clone().sub(this.target));
+    var ptrs={}, n=0, last=null, lastDist=0;
+    function pos(e){return {x:e.clientX,y:e.clientY};}
+    function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+    dom.addEventListener('pointerdown',function(e){
+      if(!self.enabled)return; ptrs[e.pointerId]=pos(e); n++;
+      dom.setPointerCapture(e.pointerId);
+      if(n===1) last=pos(e);
+      if(n===2){var k=Object.keys(ptrs);lastDist=dist(ptrs[k[0]],ptrs[k[1]]);}
+    });
+    dom.addEventListener('pointermove',function(e){
+      if(!self.enabled||!(e.pointerId in ptrs))return;
+      ptrs[e.pointerId]=pos(e);
+      var k=Object.keys(ptrs);
+      if(k.length===1&&last){
+        var p=ptrs[k[0]];
+        sph.theta-=(p.x-last.x)*0.006;
+        sph.phi-=(p.y-last.y)*0.006;
+        last=p;
+      }else if(k.length===2){
+        var d=dist(ptrs[k[0]],ptrs[k[1]]);
+        if(lastDist)sph.radius*=lastDist/d;
+        lastDist=d;
+      }
+      self.update();
+    });
+    function up(e){ if(e.pointerId in ptrs){delete ptrs[e.pointerId];n=Math.max(0,n-1);} last=null; lastDist=0;
+      var k=Object.keys(ptrs); if(k.length===1)last=ptrs[k[0]]; }
+    dom.addEventListener('pointerup',up); dom.addEventListener('pointercancel',up);
+    dom.addEventListener('wheel',function(e){
+      if(!self.enabled)return; e.preventDefault();
+      sph.radius*=Math.pow(0.95,-Math.sign(e.deltaY)); self.update();
+    },{passive:false});
+    this.update=function(){
+      sph.phi=Math.max(this.minPolarAngle,Math.min(this.maxPolarAngle,sph.phi));
+      sph.radius=Math.max(this.minDistance,Math.min(this.maxDistance,sph.radius));
+      this.object.position.copy(this.target).add(new THREE.Vector3().setFromSpherical(sph));
+      this.object.lookAt(this.target);
+      return true;
+    };
+    this.syncFromCamera=function(){sph.setFromVector3(cam.position.clone().sub(this.target));};
+  };
+}
+
+/* ============================================================
+   1) ฉาก (ธีมสว่าง พื้นหลังขาว)
+   ============================================================ */
+var cv=document.getElementById('cv'), stage=document.getElementById('stage');
+var renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+if(THREE.sRGBEncoding) renderer.outputEncoding=THREE.sRGBEncoding;
+
+var scene=new THREE.Scene();
+scene.fog=new THREE.Fog(0xf4f4f5, 34, 95);
+
+var camera=new THREE.PerspectiveCamera(45,1,0.1,500);
+camera.position.set(6,14,18);
+
+var controls=new THREE.OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true; controls.dampingFactor=0.09;
+controls.minDistance=5; controls.maxDistance=70;
+controls.maxPolarAngle=Math.PI/2-0.02;
+controls.target.set(3,0,-2);
+if(controls.syncFromCamera)controls.syncFromCamera();
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff,0.72));
+scene.add(new THREE.HemisphereLight(0xffffff,0xccd8e8,0.62));
+var dir=new THREE.DirectionalLight(0xffffff,0.68); dir.position.set(-8,18,10); scene.add(dir);
+var dir2=new THREE.DirectionalLight(0xdce8ff,0.28); dir2.position.set(12,8,-10); scene.add(dir2);
+
+var grid=new THREE.GridHelper(80,80,0x4b5563,0x9ca3af);   // เส้นกริดสีเทาเข้ม (เส้นกลางเข้มกว่า)
+grid.position.y=-0.02;
+grid.material.transparent=true; grid.material.opacity=0.9;
+scene.add(grid);
+
+var root=new THREE.Group(); scene.add(root);
+
+/* ============================================================
+   2) เรขาคณิตของการตัดแบ่งแบบ Perigal
+   ------------------------------------------------------------
+   ระบบพิกัด 2 มิติ: มุมฉากอยู่ที่ (0,0)
+     ด้าน b วางตามแกน +x  → ปลายที่ (b,0)
+     ด้าน a วางตามแกน +y  → ปลายที่ (0,a)
+   จัตุรัสบนด้านที่ "ยาวกว่า" ถูกตัดด้วยเส้น 2 เส้นผ่านจุดศูนย์กลาง
+   ขนาน/ตั้งฉากกับด้าน c → ได้ 4 ชิ้นเท่ากัน "เลื่อนขนานล้วน ๆ"
+   ไปยัง 4 มุมของจัตุรัส c² เหลือช่องกลางเป็นจัตุรัสด้าน = ด้านสั้น
+   ============================================================ */
+function buildData(a,b){
+  var swap = a>b;
+  var p=Math.min(a,b), q=Math.max(a,b);
+  var T = swap ? function(v){return [v[1],v[0]];} : function(v){return [v[0],v[1]];};
+  var M=[q/2,-q/2], Qt=[(p+q)/2,0], Qb=[(q-p)/2,-q], Ql=[0,(p-q)/2], Qr=[q,-(p+q)/2];
+  var P1=[0,0],P2=[q,0],P3=[q,-q],P4=[0,-q];
+  var raw=[
+    {poly:[P1,Qt,M,Ql], d:[ q/2,       q/2      ]},
+    {poly:[Qt,P2,Qr,M], d:[-q/2,       p+q/2    ]},
+    {poly:[M,Qr,P3,Qb], d:[ p-q/2,     p+3*q/2  ]},
+    {poly:[Ql,M,Qb,P4], d:[ p+q/2,     3*q/2    ]}
+  ];
+  function mp(arr){return arr.map(T);}
+  return {
+    a:a, b:b, c:Math.hypot(a,b), p:p, q:q, aIsBig:swap,
+    pieces: raw.map(function(r){return {poly:mp(r.poly), d:T(r.d)};}),
+    small : {poly:mp([[0,0],[0,p],[-p,p],[-p,0]]), d:T([p+q/2,q/2])},
+    cPoly : mp([[q,0],[0,p],[p,p+q],[p+q,q]]),
+    tri   : mp([[0,0],[q,0],[0,p]]),
+    bigSqPoly : mp([[0,0],[q,0],[q,-q],[0,-q]])
+  };
+}
+
+/* ---------- ตัวช่วยสร้าง mesh ---------- */
+var THICK=0.14;
+var EDGE=0x111827;                       // สีเส้นรอบรูป
+var FAT = !!(THREE.LineSegments2 && THREE.LineSegmentsGeometry && THREE.LineMaterial);
+var fatMats=[];                          // เก็บไว้อัปเดต resolution ตอนปรับขนาดจอ
+function thickLine(positions, color, widthPx, opacity){
+  if(FAT){
+    var g=new THREE.LineSegmentsGeometry(); g.setPositions(positions);
+    var m=new THREE.LineMaterial({
+      color:color, linewidth:widthPx,
+      transparent:opacity<1, opacity:opacity
+    });
+    m.resolution.set(stage.clientWidth||1, stage.clientHeight||1);
+    fatMats.push(m);
+    return new THREE.LineSegments2(g,m);
+  }
+  var bg=new THREE.BufferGeometry();
+  bg.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+  return new THREE.LineSegments(bg, new THREE.LineBasicMaterial({color:color,transparent:opacity<1,opacity:opacity}));
+}
+function dedupe(poly){                    // กันกรณี a = b พอดี (จุดตัดทับมุมจัตุรัส)
+  var out=[];
+  for(var i=0;i<poly.length;i++){
+    var p=poly[i], q=out[out.length-1];
+    if(!q || Math.abs(p[0]-q[0])>1e-9 || Math.abs(p[1]-q[1])>1e-9) out.push(p);
+  }
+  if(out.length>2){
+    var f=out[0], l=out[out.length-1];
+    if(Math.abs(f[0]-l[0])<1e-9 && Math.abs(f[1]-l[1])<1e-9) out.pop();
+  }
+  return out;
+}
+function toShape(poly){
+  poly=dedupe(poly);
+  var s=new THREE.Shape();
+  s.moveTo(poly[0][0],poly[0][1]);
+  for(var i=1;i<poly.length;i++) s.lineTo(poly[i][0],poly[i][1]);
+  s.closePath(); return s;
+}
+function slab(poly,depth,color,opacity){
+  var g=new THREE.ExtrudeGeometry(toShape(poly),{depth:depth,bevelEnabled:false,curveSegments:1});
+  var m=new THREE.Mesh(g,new THREE.MeshStandardMaterial({
+    color:color, roughness:.5, metalness:.04,
+    transparent:opacity!==undefined, opacity:opacity===undefined?1:opacity
+  }));
+  m.rotation.x=-Math.PI/2;               // (x,y,z) → (x, z, -y)
+  var eg=new THREE.EdgesGeometry(g);
+  var pts=Array.prototype.slice.call(eg.attributes.position.array);
+  eg.dispose();
+  m.add(thickLine(pts, EDGE, 2.6, .92));
+  return m;
+}
+/* สัญลักษณ์มุมฉาก: จัตุรัสเล็กกลวงที่จุดมุมฉาก (0,0) */
+function rightAngleMark(s,color,y){
+  var t=s*0.15;
+  var sh=new THREE.Shape();
+  sh.moveTo(0,0); sh.lineTo(s,0); sh.lineTo(s,s); sh.lineTo(0,s); sh.closePath();
+  var hole=new THREE.Path();
+  hole.moveTo(t,t); hole.lineTo(s-t,t); hole.lineTo(s-t,s-t); hole.lineTo(t,s-t); hole.closePath();
+  sh.holes.push(hole);
+  var g=new THREE.ExtrudeGeometry(sh,{depth:0.025,bevelEnabled:false,curveSegments:1});
+  var m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:color}));
+  m.rotation.x=-Math.PI/2; m.position.y=y;
+  return m;
+}
+function outline(poly,color,y,opacity,widthPx){
+  poly=dedupe(poly);
+  var pts=[];
+  for(var i=0;i<poly.length;i++){
+    var A=poly[i], B=poly[(i+1)%poly.length];
+    pts.push(A[0],y,-A[1], B[0],y,-B[1]);
+  }
+  return thickLine(pts, color, widthPx||2.2, opacity);
+}
+
+/* ---------- ป้ายข้อความ (sprite) ---------- */
+function Label(color,size){
+  this.color=color; this.size=size||0.62; this.text=null;
+  this.sprite=new THREE.Sprite(new THREE.SpriteMaterial({transparent:true,depthTest:false}));
+  this.sprite.renderOrder=20;
+}
+Label.prototype.set=function(t){
+  if(t===this.text)return; this.text=t;
+  var fs=64,pad=26,f='700 '+fs+'px Sarabun, "Noto Sans Thai", sans-serif';
+  var c=document.createElement('canvas'),x=c.getContext('2d');
+  x.font=f; var w=Math.ceil(x.measureText(t).width)+pad*2, h=fs+pad;
+  c.width=w; c.height=h; x=c.getContext('2d'); x.font=f;
+  var r=h/2;
+  x.beginPath();
+  x.moveTo(r,0);x.lineTo(w-r,0);x.arcTo(w,0,w,r,r);x.lineTo(w,h-r);
+  x.arcTo(w,h,w-r,h,r);x.lineTo(r,h);x.arcTo(0,h,0,h-r,r);x.lineTo(0,r);x.arcTo(0,0,r,0,r);
+  x.closePath();
+  x.fillStyle='rgba(255,255,255,.94)'; x.fill();
+  x.lineWidth=5; x.strokeStyle=this.color; x.stroke();
+  x.fillStyle=this.color; x.textAlign='center'; x.textBaseline='middle';
+  x.fillText(t,w/2,h/2+2);
+  var tex=new THREE.CanvasTexture(c);
+  tex.minFilter=THREE.LinearFilter; tex.generateMipmaps=false;
+  if(this.sprite.material.map)this.sprite.material.map.dispose();
+  this.sprite.material.map=tex; this.sprite.material.needsUpdate=true;
+  this.sprite.scale.set(this.size*w/h,this.size,1);
+};
+Label.prototype.at=function(x2,y2,h){this.sprite.position.set(x2,h,-y2);};
+
+var COL={a:0x047857, b:0x1d4ed8, c:0xbe123c, tri:0xb45309};
+var CSS={a:'#047857', b:'#1d4ed8', c:'#be123c', tri:'#b45309'};
+var labA=new Label(CSS.a,0.7), labB=new Label(CSS.b,0.7), labC=new Label(CSS.c,0.7);
+var areaA=new Label(CSS.a,0.5), areaB=new Label(CSS.b,0.5), areaC=new Label(CSS.c,0.5);
+[labA,labB,labC,areaA,areaB,areaC].forEach(function(l){scene.add(l.sprite);});
+
+/* ============================================================
+   3) สร้าง / อัปเดตโมเดล
+   ============================================================ */
+var D=null, pieceMeshes=[], smallMesh=null, triMesh=null, cFill=null;
+var grpA=null, grpB=null, grpC=null;   // กลุ่มวัตถุของจัตุรัส a² / b² / c²
+
+function clearGroup(){
+  while(root.children.length){
+    var o=root.children.pop();
+    o.traverse(function(n){
+      if(n.geometry)n.geometry.dispose();
+      if(n.material){ (Array.isArray(n.material)?n.material:[n.material]).forEach(function(m){m.dispose();}); }
+    });
+  }
+  pieceMeshes=[]; grpA=grpB=grpC=null; fatMats.length=0;
+}
+
+function build(a,b){
+  clearGroup();
+  D=buildData(a,b);
+  var bigColor  = D.aIsBig ? COL.a : COL.b;
+  var smallColor= D.aIsBig ? COL.b : COL.a;
+
+  /* กลุ่มของแต่ละด้าน — ใช้เปิด/ปิดพร้อมกันทั้งรูปทรงและเงาโครงร่าง */
+  grpA=new THREE.Group(); grpB=new THREE.Group(); grpC=new THREE.Group();
+  root.add(grpA); root.add(grpB); root.add(grpC);
+  var grpBig   = D.aIsBig ? grpA : grpB;   // ด้านที่ยาวกว่า = จัตุรัสที่ถูกตัด 4 ชิ้น
+  var grpSmall = D.aIsBig ? grpB : grpA;
+
+  /* จัตุรัส c² : พื้นเป้าหมาย (โปร่งแสง) */
+  cFill=slab(D.cPoly,0.035,COL.c,0.18);
+  cFill.position.y=0.001;
+  grpC.add(cFill);
+  grpC.add(outline(D.cPoly,COL.c,0.055,0.95,3.4));
+
+  /* เงาโครงร่างตำแหน่งเดิม */
+  grpBig.add(outline(D.bigSqPoly,bigColor,0.012,0.5,2.6));
+  grpSmall.add(outline(D.small.poly,smallColor,0.012,0.5,2.6));
+  D.pieces.forEach(function(p){ grpBig.add(outline(p.poly,bigColor,0.014,0.32,2.0)); });
+
+  /* สามเหลี่ยมมุมฉาก (แสดงตลอด) */
+  triMesh=slab(D.tri,THICK*0.72,COL.tri,0.97);
+  triMesh.position.y=0.004;
+  root.add(triMesh);
+
+  /* สัญลักษณ์มุมฉากที่จุด (0,0) */
+  var ms=Math.max(0.20,Math.min(0.46,Math.min(a,b)*0.16));
+  root.add(rightAngleMark(ms,0x000000,0.004+THICK*0.72+0.006));
+
+  /* 4 ชิ้นจากจัตุรัสใหญ่ — สีเดียวกันทั้งหมด */
+  D.pieces.forEach(function(p){
+    var m=slab(p.poly,THICK,bigColor);
+    grpBig.add(m); pieceMeshes.push(m);
+  });
+
+  /* จัตุรัสเล็ก */
+  smallMesh=slab(D.small.poly,THICK,smallColor);
+  grpSmall.add(smallMesh);
+
+  updateLabels();
+  updateHUD();
+  applyAreaVisibility();
+}
+
+function updateLabels(){
+  var a=D.a,b=D.b,c=D.c;
+  labA.set('a'); labB.set('b'); labC.set('c');
+  labA.at(-0.42, a/2, 0.85);
+  labB.at(b/2, -0.42, 0.85);
+  labC.at(b/2 + a/c*0.55, a/2 + b/c*0.55, 0.85);
+
+  areaA.set('a² = '+(a*a).toFixed(2));
+  areaB.set('b² = '+(b*b).toFixed(2));
+  areaC.set('c² = '+(c*c).toFixed(2));
+  areaA.at(-a/2, a/2, THICK+0.42);
+  areaB.at( b/2,-b/2, THICK+0.42);
+  areaC.at((a+b)/2,(a+b)/2, THICK+0.9);
+}
+
+/* ============================================================
+   4) แอนิเมชัน
+   ============================================================ */
+var STAGES=[{s:0.10,e:0.48},{s:0.18,e:0.56},{s:0.26,e:0.64},{s:0.34,e:0.72}];
+var SMALL={s:0.62,e:0.94};
+function smooth(x){x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);}
+function seg(t,st){return smooth((t-st.s)/(st.e-st.s));}
+
+var progress=0, playing=false;
+
+function applyProgress(t){
+  if(!D)return;
+  var lift=Math.max(0.7, D.q*0.22);
+  for(var i=0;i<pieceMeshes.length;i++){
+    var u=seg(t,STAGES[i]), d=D.pieces[i].d;
+    pieceMeshes[i].position.set(d[0]*u, Math.sin(Math.PI*u)*lift, -d[1]*u);
+  }
+  var v=seg(t,SMALL), sd=D.small.d;
+  smallMesh.position.set(sd[0]*v, Math.sin(Math.PI*v)*lift*0.9, -sd[1]*v);
+  cFill.material.opacity = 0.18 + 0.10*(1-t);
+}
+
+/* ---------- คำอธิบายแต่ละขั้น ---------- */
+var STEPS=[
+  {to:0.06,n:'0',c:CSS.c,h:'ตั้งต้น: สามเหลี่ยมมุมฉากกับจัตุรัสทั้งสาม',
+   d:'จัตุรัสสีเขียวคือ a² สีน้ำเงินคือ b² และกรอบสีแดงเข้มคือ c² เป้าหมายคือแสดงว่า a² กับ b² รวมกันแล้ว "เติมเต็ม" c² พอดี'},
+  {to:0.14,n:'1',c:CSS.tri,h:'ตัดจัตุรัสบนด้านที่ยาวกว่าออกเป็น 4 ชิ้น',
+   d:'ลากเส้น 2 เส้นผ่านจุดศูนย์กลางของจัตุรัสใหญ่ เส้นหนึ่งขนานกับด้าน c อีกเส้นตั้งฉากกับด้าน c จะได้รูปสี่เหลี่ยม 4 ชิ้นที่เท่ากันทุกประการ'},
+  {to:0.60,n:'2',c:CSS.b,h:'เลื่อนทั้ง 4 ชิ้นไปยัง 4 มุมของจัตุรัส c²',
+   d:'เป็นการ "เลื่อนขนาน" ล้วน ๆ ไม่มีการหมุนหรือพลิก พื้นที่จึงไม่เปลี่ยน — นี่คือหัวใจของการพิสูจน์แบบ Perigal'},
+  {to:0.95,n:'3',c:CSS.a,h:'ช่องว่างตรงกลางมีด้านเท่ากับด้านที่สั้นกว่าพอดี',
+   d:'เลื่อนจัตุรัสของด้านสั้นเข้าไปเติมช่องตรงกลาง มันสวมพอดีเป๊ะ เพราะช่องว่างเป็นจัตุรัสที่มีด้านยาวเท่ากับด้านสั้นนั้น'},
+  {to:1.01,n:'✓',c:CSS.c,h:'เต็มพอดี ไม่ล้น ไม่เหลือช่องว่าง',
+   d:'พื้นที่ของ a² บวกกับพื้นที่ของ b² ถูกจัดเรียงใหม่จนกลายเป็น c² ทั้งหมด จึงสรุปได้ว่า a² + b² = c²'}
+];
+var elNo=document.getElementById('stepno'), elTxt=document.getElementById('steptxt'), curStep=-1;
+function updateStep(t){
+  var i=0; while(i<STEPS.length-1 && t>=STEPS[i].to) i++;
+  if(i===curStep)return; curStep=i;
+  var s=STEPS[i];
+  elNo.textContent=s.n; elNo.style.background=s.c;
+  elTxt.innerHTML='<b>'+s.h+'</b><span>'+s.d+'</span>';
+}
+
+/* ============================================================
+   5) HUD + คอนโทรล
+   ============================================================ */
+var oa=document.getElementById('oa'),ob=document.getElementById('ob'),oc=document.getElementById('oc'),
+    chk=document.getElementById('check'),
+    ra=document.getElementById('ra'),rb=document.getElementById('rb'),rt=document.getElementById('rt'),
+    va=document.getElementById('va'),vb=document.getElementById('vb'),vt=document.getElementById('vt'),
+    btnPlay=document.getElementById('play'),btnReset=document.getElementById('reset'),
+    chkA=document.getElementById('showA'),
+    chkB=document.getElementById('showB'),
+    chkC=document.getElementById('showC');
+
+function updateHUD(){
+  var a=D.a,b=D.b,c=D.c;
+  oa.textContent='a² = '+(a*a).toFixed(2);
+  ob.textContent='b² = '+(b*b).toFixed(2);
+  oc.textContent='c² = '+(c*c).toFixed(2);
+  chk.textContent='a = '+a.toFixed(2)+' , b = '+b.toFixed(2)+
+                  ' , c = √('+(a*a).toFixed(2)+' + '+(b*b).toFixed(2)+') = '+c.toFixed(3)+
+                  '   →   '+(a*a).toFixed(2)+' + '+(b*b).toFixed(2)+' = '+(a*a+b*b).toFixed(2);
+  va.textContent=a.toFixed(2); vb.textContent=b.toFixed(2);
+  ra.value=a; rb.value=b;
+}
+
+/* ---------- ช่องติ๊กถูก: ซ่อนทั้งรูปจัตุรัสและตัวเลขพื้นที่ แยกทีละด้าน ---------- */
+function applyAreaVisibility(){
+  if(grpA) grpA.visible=chkA.checked;
+  if(grpB) grpB.visible=chkB.checked;
+  if(grpC) grpC.visible=chkC.checked;
+  areaA.sprite.visible=chkA.checked;
+  areaB.sprite.visible=chkB.checked;
+  areaC.sprite.visible=chkC.checked;
+}
+[chkA,chkB,chkC].forEach(function(el){el.addEventListener('change',applyAreaVisibility);});
+
+function setAB(a,b){
+  a=Math.max(0.8,Math.min(6,a)); b=Math.max(0.8,Math.min(6,b));
+  build(a,b); applyProgress(progress);
+}
+ra.addEventListener('input',function(){setAB(parseFloat(ra.value),D.b);});
+rb.addEventListener('input',function(){setAB(D.a,parseFloat(rb.value));});
+
+function setProgress(t,fromSlider){
+  progress=Math.max(0,Math.min(1,t));
+  if(!fromSlider) rt.value=Math.round(progress*1000);
+  vt.textContent=Math.round(progress*100)+'%';
+  applyProgress(progress); updateStep(progress);
+}
+rt.addEventListener('input',function(){
+  setPlaying(false);
+  setProgress(parseFloat(rt.value)/1000,true);
+});
+function setPlaying(p){
+  playing=p; btnPlay.textContent=p?'❚❚ หยุด':'▶ เล่น';
+}
+btnPlay.addEventListener('click',function(){
+  if(progress>=1) setProgress(0);
+  setPlaying(!playing);
+});
+btnReset.addEventListener('click',function(){
+  setPlaying(false); setProgress(0);
+  setAB(3,4);
+  chkA.checked=chkB.checked=chkC.checked=true; applyAreaVisibility();
+  camera.position.set(6,14,18); controls.target.copy(desiredTarget());
+  if(controls.syncFromCamera)controls.syncFromCamera();
+  controls.update();
+});
+
+/* ============================================================
+   6) ลากจุดยอด
+   ============================================================ */
+var ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+var plane=new THREE.Plane(new THREE.Vector3(0,1,0),0), hitPt=new THREE.Vector3();
+var dragging=null;
+
+function toNDC(e){
+  var r=renderer.domElement.getBoundingClientRect();
+  ndc.x=((e.clientX-r.left)/r.width)*2-1;
+  ndc.y=-((e.clientY-r.top)/r.height)*2+1;
+}
+/* หามุมสามเหลี่ยมที่อยู่ใกล้เคอร์เซอร์ ('a' = ปลายด้าน a, 'b' = ปลายด้าน b) */
+function pickVertex(e){
+  if(!D)return null;
+  toNDC(e); ray.setFromCamera(ndc,camera);
+  if(!ray.ray.intersectPlane(plane,hitPt))return null;
+  var px=hitPt.x, py=-hitPt.z;
+  var r=Math.max(0.45, camera.position.distanceTo(controls.target)*0.032); // รัศมีจับ ปรับตามระยะซูม
+  var dA=Math.hypot(px, py-D.a), dB=Math.hypot(px-D.b, py);
+  if(dA<r && dA<=dB) return 'a';
+  if(dB<r) return 'b';
+  return null;
+}
+renderer.domElement.addEventListener('pointerdown',function(e){
+  var k=pickVertex(e);
+  if(k){
+    dragging=k;
+    controls.enabled=false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+    renderer.domElement.style.cursor='grabbing';
+  }
+},true);
+renderer.domElement.addEventListener('pointermove',function(e){
+  if(!dragging)return;
+  e.stopPropagation();
+  toNDC(e); ray.setFromCamera(ndc,camera);
+  if(!ray.ray.intersectPlane(plane,hitPt))return;
+  if(dragging==='a') setAB(-hitPt.z, D.b);
+  else               setAB(D.a, hitPt.x);
+},true);
+function endDrag(){ if(!dragging)return; dragging=null; controls.enabled=true; renderer.domElement.style.cursor='grab'; }
+renderer.domElement.addEventListener('pointerup',endDrag,true);
+renderer.domElement.addEventListener('pointercancel',endDrag,true);
+
+renderer.domElement.addEventListener('pointermove',function(e){
+  if(dragging)return;
+  renderer.domElement.style.cursor = pickVertex(e) ? 'grab' : 'default';
+});
+
+/* ============================================================
+   7) ลูปหลัก
+   ============================================================ */
+function desiredTarget(){
+  var a=D.a,b=D.b;
+  var minX=-a, maxX=a+b, minY=-b, maxY=a+b;
+  return new THREE.Vector3((minX+maxX)/2, 0, -(minY+maxY)/2);
+}
+function resize(){
+  var w=stage.clientWidth,h=stage.clientHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+  for(var i=0;i<fatMats.length;i++) fatMats[i].resolution.set(w,h);   // เส้นหนาต้องรู้ขนาดจอ
+}
+window.addEventListener('resize',resize);
+
+var clock=new THREE.Clock();
+function loop(){
+  requestAnimationFrame(loop);
+  var dt=Math.min(clock.getDelta(),0.05);
+  if(playing){
+    var t=progress+dt/7.5;          // เล่นครบใน ~7.5 วินาที
+    if(t>=1){t=1;setPlaying(false);}
+    setProgress(t);
+  }
+  controls.target.lerp(desiredTarget(),0.08);
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+/* ---------- ไอคอนหน้าเว็บ = ตราโรงเรียน ---------- */
+(function(){
+  var src=document.getElementById('logo').src;
+  ['icon','apple-touch-icon'].forEach(function(rel){
+    var l=document.createElement('link'); l.rel=rel; l.href=src;
+    document.head.appendChild(l);
+  });
+})();
+
+/* ---------- เริ่มต้น ---------- */
+resize();
+build(3,4);
+resize();
+applyAreaVisibility();
+controls.target.copy(desiredTarget());
+if(controls.syncFromCamera)controls.syncFromCamera();
+setProgress(0);
+loop();
+
+})();
+</script>
+</body>
+</html>
